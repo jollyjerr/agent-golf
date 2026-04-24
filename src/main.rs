@@ -258,6 +258,13 @@ impl App {
                     self.state = GameState::Rolling;
                 }
             }
+            KeyCode::Char('s') | KeyCode::Char('S') => {
+                if self.state == GameState::Rolling {
+                    self.vel_x = 0.0;
+                    self.vel_y = 0.0;
+                    self.state = GameState::Stuck;
+                }
+            }
             KeyCode::Char('r') | KeyCode::Char('R') => {
                 if matches!(self.state, GameState::Stuck | GameState::Aiming | GameState::Rolling) {
                     self.prev_state = self.state.clone();
@@ -385,7 +392,7 @@ impl App {
             format!("  ←/→ Aim  ↑/↓ Power: {:.1}  [Space] Putt  [r] Reshape  [q] Quit  |  {}",
                 self.putt_power, state_msg)
         } else {
-            format!("  [r] Reshape  [Enter] Reset  [q] Quit  |  Putt #{} | {}", self.putt_count, state_msg)
+            format!("  [s] Stop  [r] Reshape  [Enter] Reset  [q] Quit  |  Putt #{} | {}", self.putt_count, state_msg)
         };
         let footer = Paragraph::new(controls)
             .style(Style::default().fg(Color::DarkGray))
