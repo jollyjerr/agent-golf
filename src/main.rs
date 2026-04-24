@@ -4,13 +4,13 @@ use std::time::Duration;
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
     widgets::{
         Block, Borders, Paragraph,
-        canvas::{Canvas, Circle, self},
+        canvas::{self, Canvas, Circle},
     },
-    Frame,
 };
 
 // ---- Constants ----
@@ -108,39 +108,149 @@ enum GameState {
 fn gaussians_before() -> Vec<Gaussian> {
     vec![
         // Large hills blocking the path
-        Gaussian { cx: 4.0, cy: 5.0, amplitude:  3.2, sigma: 1.4 },
-        Gaussian { cx: 6.5, cy: 3.0, amplitude:  2.5, sigma: 1.0 },
-        Gaussian { cx: 2.5, cy: 7.5, amplitude:  2.8, sigma: 1.1 },
+        Gaussian {
+            cx: 4.0,
+            cy: 5.0,
+            amplitude: 3.2,
+            sigma: 1.4,
+        },
+        Gaussian {
+            cx: 6.5,
+            cy: 3.0,
+            amplitude: 2.5,
+            sigma: 1.0,
+        },
+        Gaussian {
+            cx: 2.5,
+            cy: 7.5,
+            amplitude: 2.8,
+            sigma: 1.1,
+        },
         // Medium bumps / ridges
-        Gaussian { cx: 5.0, cy: 8.0, amplitude:  1.8, sigma: 0.9 },
-        Gaussian { cx: 7.5, cy: 6.5, amplitude:  1.5, sigma: 0.8 },
-        Gaussian { cx: 3.0, cy: 1.5, amplitude:  1.6, sigma: 0.7 },
-        Gaussian { cx: 8.5, cy: 2.0, amplitude:  1.4, sigma: 0.8 },
+        Gaussian {
+            cx: 5.0,
+            cy: 8.0,
+            amplitude: 1.8,
+            sigma: 0.9,
+        },
+        Gaussian {
+            cx: 7.5,
+            cy: 6.5,
+            amplitude: 1.5,
+            sigma: 0.8,
+        },
+        Gaussian {
+            cx: 3.0,
+            cy: 1.5,
+            amplitude: 1.6,
+            sigma: 0.7,
+        },
+        Gaussian {
+            cx: 8.5,
+            cy: 2.0,
+            amplitude: 1.4,
+            sigma: 0.8,
+        },
         // Local minimum traps
-        Gaussian { cx: 3.0, cy: 3.5, amplitude: -1.8, sigma: 0.7 },
-        Gaussian { cx: 6.0, cy: 6.5, amplitude: -1.4, sigma: 0.6 },
-        Gaussian { cx: 7.5, cy: 4.5, amplitude: -1.2, sigma: 0.5 },
+        Gaussian {
+            cx: 3.0,
+            cy: 3.5,
+            amplitude: -1.8,
+            sigma: 0.7,
+        },
+        Gaussian {
+            cx: 6.0,
+            cy: 6.5,
+            amplitude: -1.4,
+            sigma: 0.6,
+        },
+        Gaussian {
+            cx: 7.5,
+            cy: 4.5,
+            amplitude: -1.2,
+            sigma: 0.5,
+        },
         // The hole — narrow, hard to reach
-        Gaussian { cx: 8.0, cy: 7.5, amplitude: -5.0, sigma: 0.55 },
+        Gaussian {
+            cx: 8.0,
+            cy: 7.5,
+            amplitude: -5.0,
+            sigma: 0.55,
+        },
     ]
 }
 
 fn gaussians_after() -> Vec<Gaussian> {
     vec![
         // Hills flattened
-        Gaussian { cx: 4.0, cy: 5.0, amplitude:  0.5, sigma: 1.4 },
-        Gaussian { cx: 6.5, cy: 3.0, amplitude:  0.4, sigma: 1.0 },
-        Gaussian { cx: 2.5, cy: 7.5, amplitude:  0.5, sigma: 1.1 },
-        Gaussian { cx: 5.0, cy: 8.0, amplitude:  0.3, sigma: 0.9 },
-        Gaussian { cx: 7.5, cy: 6.5, amplitude:  0.3, sigma: 0.8 },
-        Gaussian { cx: 3.0, cy: 1.5, amplitude:  0.3, sigma: 0.7 },
-        Gaussian { cx: 8.5, cy: 2.0, amplitude:  0.3, sigma: 0.8 },
+        Gaussian {
+            cx: 4.0,
+            cy: 5.0,
+            amplitude: 0.5,
+            sigma: 1.4,
+        },
+        Gaussian {
+            cx: 6.5,
+            cy: 3.0,
+            amplitude: 0.4,
+            sigma: 1.0,
+        },
+        Gaussian {
+            cx: 2.5,
+            cy: 7.5,
+            amplitude: 0.5,
+            sigma: 1.1,
+        },
+        Gaussian {
+            cx: 5.0,
+            cy: 8.0,
+            amplitude: 0.3,
+            sigma: 0.9,
+        },
+        Gaussian {
+            cx: 7.5,
+            cy: 6.5,
+            amplitude: 0.3,
+            sigma: 0.8,
+        },
+        Gaussian {
+            cx: 3.0,
+            cy: 1.5,
+            amplitude: 0.3,
+            sigma: 0.7,
+        },
+        Gaussian {
+            cx: 8.5,
+            cy: 2.0,
+            amplitude: 0.3,
+            sigma: 0.8,
+        },
         // Traps mostly filled
-        Gaussian { cx: 3.0, cy: 3.5, amplitude: -0.2, sigma: 0.7 },
-        Gaussian { cx: 6.0, cy: 6.5, amplitude: -0.2, sigma: 0.6 },
-        Gaussian { cx: 7.5, cy: 4.5, amplitude: -0.1, sigma: 0.5 },
+        Gaussian {
+            cx: 3.0,
+            cy: 3.5,
+            amplitude: -0.2,
+            sigma: 0.7,
+        },
+        Gaussian {
+            cx: 6.0,
+            cy: 6.5,
+            amplitude: -0.2,
+            sigma: 0.6,
+        },
+        Gaussian {
+            cx: 7.5,
+            cy: 4.5,
+            amplitude: -0.1,
+            sigma: 0.5,
+        },
         // Hole widens and deepens — clear basin of attraction
-        Gaussian { cx: 8.0, cy: 7.5, amplitude: -6.0, sigma: 1.2 },
+        Gaussian {
+            cx: 8.0,
+            cy: 7.5,
+            amplitude: -6.0,
+            sigma: 1.2,
+        },
     ]
 }
 
@@ -262,11 +372,14 @@ impl App {
                 if self.state == GameState::Rolling {
                     self.vel_x = 0.0;
                     self.vel_y = 0.0;
-                    self.state = GameState::Stuck;
+                    self.state = GameState::Aiming;
                 }
             }
             KeyCode::Char('r') | KeyCode::Char('R') => {
-                if matches!(self.state, GameState::Stuck | GameState::Aiming | GameState::Rolling) {
+                if matches!(
+                    self.state,
+                    GameState::Stuck | GameState::Aiming | GameState::Rolling
+                ) {
                     self.prev_state = self.state.clone();
                     self.state = GameState::Reshaping;
                     self.morph_t = 0.0;
@@ -365,16 +478,15 @@ impl App {
         // Title
         let title_text = match self.state {
             GameState::Reshaping => " P(X|C) → P(X|C')  [Context Change]",
-            GameState::InHole    => " ⛳ Global Minimum Reached — Valid Code Found!",
+            GameState::InHole => " ⛳ Global Minimum Reached — Valid Code Found!",
             _ => " E(x) = Σ aᵢ·exp(−‖x−cᵢ‖²/2σᵢ²)   |   Agent Golf",
         };
         let title_color = match self.state {
             GameState::Reshaping => Color::Yellow,
-            GameState::InHole    => Color::Green,
+            GameState::InHole => Color::Green,
             _ => Color::Cyan,
         };
-        let title = Paragraph::new(title_text)
-            .style(Style::default().fg(title_color));
+        let title = Paragraph::new(title_text).style(Style::default().fg(title_color));
         frame.render_widget(title, chunks[0]);
 
         // Canvas
@@ -382,17 +494,22 @@ impl App {
 
         // Footer
         let state_msg: &str = match self.state {
-            GameState::Aiming    => "Aim and putt",
-            GameState::Rolling   => "Sampling inference in progress...",
-            GameState::Stuck     => "Stuck in local minimum — add context with [r] to reshape",
+            GameState::Aiming => "Aim and putt",
+            GameState::Rolling => "Sampling inference in progress...",
+            GameState::Stuck => "Stuck in local minimum — add context with [r] to reshape",
             GameState::Reshaping => "Reshaping energy landscape...",
-            GameState::InHole    => "Global minimum found! Press [Enter] to reset",
+            GameState::InHole => "Global minimum found! Press [Enter] to reset",
         };
         let controls = if self.state == GameState::Aiming {
-            format!("  ←/→ Aim  ↑/↓ Power: {:.1}  [Space] Putt  [r] Reshape  [q] Quit  |  {}",
-                self.putt_power, state_msg)
+            format!(
+                "  ←/→ Aim  ↑/↓ Power: {:.1}  [Space] Putt  [r] Reshape  [q] Quit  |  {}",
+                self.putt_power, state_msg
+            )
         } else {
-            format!("  [s] Stop  [r] Reshape  [Enter] Reset  [q] Quit  |  Putt #{} | {}", self.putt_count, state_msg)
+            format!(
+                "  [s] Stop  [r] Reshape  [Enter] Reset  [q] Quit  |  Putt #{} | {}",
+                self.putt_count, state_msg
+            )
         };
         let footer = Paragraph::new(controls)
             .style(Style::default().fg(Color::DarkGray))
@@ -456,7 +573,9 @@ impl App {
                 for sum in (0..(2 * GRID - 1)).rev() {
                     for i in 0..GRID {
                         let j = if sum >= i { sum - i } else { continue };
-                        if j >= GRID { continue; }
+                        if j >= GRID {
+                            continue;
+                        }
 
                         let (sx, sy) = pts[i][j];
                         let h = heights[i][j];
@@ -477,7 +596,9 @@ impl App {
 
                 // Hole
                 ctx.draw(&Circle {
-                    x: hsx, y: hsy, radius: 0.35,
+                    x: hsx,
+                    y: hsy,
+                    radius: 0.35,
                     color: Color::Rgb(255, 80, 255),
                 });
 
@@ -491,7 +612,9 @@ impl App {
                 for &((tx, ty), age) in &trail_pts {
                     let brightness = (age as f64 / trail_len as f64 * 200.0) as u8 + 55;
                     ctx.draw(&Circle {
-                        x: tx, y: ty, radius: 0.07,
+                        x: tx,
+                        y: ty,
+                        radius: 0.07,
                         color: Color::Rgb(brightness, brightness, brightness),
                     });
                 }
@@ -505,7 +628,9 @@ impl App {
                     Color::White
                 };
                 ctx.draw(&Circle {
-                    x: bsx, y: bsy, radius: 0.22,
+                    x: bsx,
+                    y: bsy,
+                    radius: 0.22,
                     color: ball_color,
                 });
                 ctx.print(bsx + 0.3, bsy + 0.2, "⬤ LLM Output");
@@ -517,13 +642,11 @@ impl App {
 
                 // Reshape overlay label
                 if state == GameState::Reshaping {
-                    ctx.print(-7.0, 10.5,
-                        format!("Reshaping: {:.0}%", morph_t * 100.0));
+                    ctx.print(-7.0, 10.5, format!("Reshaping: {:.0}%", morph_t * 100.0));
                 }
 
                 // Putt counter label
-                ctx.print(-8.5, 11.2,
-                    format!("Putt #{}", putt_count));
+                ctx.print(-8.5, 11.2, format!("Putt #{}", putt_count));
             });
 
         frame.render_widget(canvas, area);
