@@ -19,13 +19,13 @@ const GRID: usize = 22;
 const Z_SCALE: f64 = 0.7;
 const DOMAIN: f64 = 10.0;
 const GRAVITY: f64 = 0.4;
-const DAMPING: f64 = 0.985;
+const DAMPING: f64 = 0.90;
 const DT: f64 = 0.06;
 const EPS: f64 = 0.05;
 const PUTT_POWER_STEP: f64 = 0.3;
 const AIM_STEP: f64 = 0.08;
 const MORPH_TICKS: f64 = 60.0;
-const STUCK_TICKS: u32 = 40;
+const STUCK_TICKS: u32 = 20;
 const TRAIL_LEN: usize = 60;
 
 // ---- Surface math ----
@@ -84,12 +84,11 @@ fn height_to_color(h: f64) -> Color {
 }
 
 // ---- Isometric projection ----
-// Maps (x, y, z) in [0,10]^2 x [-5,3] to canvas screen coords.
-// Canvas x_bounds: [-9, 9], y_bounds: [-3, 12]
+// Canvas y-axis points up, so positive z (hills) must increase cy.
 
 fn project(x: f64, y: f64, z: f64) -> (f64, f64) {
     let cx = (x - y) * 0.866;
-    let cy = (x + y) * 0.45 - z * Z_SCALE;
+    let cy = (x + y) * 0.45 + z * Z_SCALE;
     (cx, cy)
 }
 
@@ -108,19 +107,40 @@ enum GameState {
 
 fn gaussians_before() -> Vec<Gaussian> {
     vec![
-        Gaussian { cx: 4.0, cy: 5.0, amplitude:  3.0, sigma: 1.5 },
-        Gaussian { cx: 6.5, cy: 3.0, amplitude:  2.2, sigma: 1.0 },
-        Gaussian { cx: 3.0, cy: 3.0, amplitude: -1.6, sigma: 0.8 },
-        Gaussian { cx: 8.0, cy: 7.0, amplitude: -4.5, sigma: 0.6 },
+        // Large hills blocking the path
+        Gaussian { cx: 4.0, cy: 5.0, amplitude:  3.2, sigma: 1.4 },
+        Gaussian { cx: 6.5, cy: 3.0, amplitude:  2.5, sigma: 1.0 },
+        Gaussian { cx: 2.5, cy: 7.5, amplitude:  2.8, sigma: 1.1 },
+        // Medium bumps / ridges
+        Gaussian { cx: 5.0, cy: 8.0, amplitude:  1.8, sigma: 0.9 },
+        Gaussian { cx: 7.5, cy: 6.5, amplitude:  1.5, sigma: 0.8 },
+        Gaussian { cx: 3.0, cy: 1.5, amplitude:  1.6, sigma: 0.7 },
+        Gaussian { cx: 8.5, cy: 2.0, amplitude:  1.4, sigma: 0.8 },
+        // Local minimum traps
+        Gaussian { cx: 3.0, cy: 3.5, amplitude: -1.8, sigma: 0.7 },
+        Gaussian { cx: 6.0, cy: 6.5, amplitude: -1.4, sigma: 0.6 },
+        Gaussian { cx: 7.5, cy: 4.5, amplitude: -1.2, sigma: 0.5 },
+        // The hole — narrow, hard to reach
+        Gaussian { cx: 8.0, cy: 7.5, amplitude: -5.0, sigma: 0.55 },
     ]
 }
 
 fn gaussians_after() -> Vec<Gaussian> {
     vec![
-        Gaussian { cx: 4.0, cy: 5.0, amplitude:  0.4, sigma: 1.5 },
-        Gaussian { cx: 6.5, cy: 3.0, amplitude:  0.3, sigma: 1.0 },
-        Gaussian { cx: 3.0, cy: 3.0, amplitude: -0.2, sigma: 0.8 },
-        Gaussian { cx: 8.0, cy: 7.0, amplitude: -5.5, sigma: 0.9 },
+        // Hills flattened
+        Gaussian { cx: 4.0, cy: 5.0, amplitude:  0.5, sigma: 1.4 },
+        Gaussian { cx: 6.5, cy: 3.0, amplitude:  0.4, sigma: 1.0 },
+        Gaussian { cx: 2.5, cy: 7.5, amplitude:  0.5, sigma: 1.1 },
+        Gaussian { cx: 5.0, cy: 8.0, amplitude:  0.3, sigma: 0.9 },
+        Gaussian { cx: 7.5, cy: 6.5, amplitude:  0.3, sigma: 0.8 },
+        Gaussian { cx: 3.0, cy: 1.5, amplitude:  0.3, sigma: 0.7 },
+        Gaussian { cx: 8.5, cy: 2.0, amplitude:  0.3, sigma: 0.8 },
+        // Traps mostly filled
+        Gaussian { cx: 3.0, cy: 3.5, amplitude: -0.2, sigma: 0.7 },
+        Gaussian { cx: 6.0, cy: 6.5, amplitude: -0.2, sigma: 0.6 },
+        Gaussian { cx: 7.5, cy: 4.5, amplitude: -0.1, sigma: 0.5 },
+        // Hole widens and deepens — clear basin of attraction
+        Gaussian { cx: 8.0, cy: 7.5, amplitude: -6.0, sigma: 1.2 },
     ]
 }
 
@@ -174,7 +194,7 @@ impl App {
             aim_angle: std::f64::consts::FRAC_PI_4,
             putt_power: 2.5,
             hole_x: 8.0,
-            hole_y: 7.0,
+            hole_y: 7.5,
             hole_radius: 0.45,
             trail: VecDeque::new(),
             putt_count: 0,
@@ -239,7 +259,7 @@ impl App {
                 }
             }
             KeyCode::Char('r') | KeyCode::Char('R') => {
-                if self.state == GameState::Stuck || self.state == GameState::Aiming {
+                if matches!(self.state, GameState::Stuck | GameState::Aiming | GameState::Rolling) {
                     self.prev_state = self.state.clone();
                     self.state = GameState::Reshaping;
                     self.morph_t = 0.0;
@@ -421,8 +441,8 @@ impl App {
 
         let canvas = Canvas::default()
             .block(Block::default().borders(Borders::ALL))
-            .x_bounds([-9.0, 9.5])
-            .y_bounds([-2.5, 12.0])
+            .x_bounds([-9.5, 9.5])
+            .y_bounds([-5.0, 14.0])
             .marker(ratatui::symbols::Marker::Braille)
             .paint(move |ctx| {
                 // Draw surface wireframe back-to-front (high i+j first)
@@ -455,7 +475,7 @@ impl App {
                 });
 
                 // Label: hole
-                ctx.print(hsx + 0.4, hsy + 0.3, "Global Min");
+                ctx.print(hsx + 0.4, hsy + 0.3, "Desired Artifacts");
 
                 ctx.layer();
 
